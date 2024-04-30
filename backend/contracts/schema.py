@@ -9,8 +9,8 @@ ProdutoSchema = {
     'handle': Dict[str, str],
     'variants': {
         'id': int,
-        'value': str,
-        'sku': str,
+        'values': Any,
+        'sku': Any,
         'price': str
     }
 }
