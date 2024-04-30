@@ -1,7 +1,9 @@
 from datasource.user.credenciais import USER_EMAIL, ACESS_TOKEN, CLIENT_ID
 import requests
 from typing import List, Any, Dict, Union
-from datetime import datetime
+import pandas as pd
+from io import BytesIO 
+import pyarrow.parquet as pq
 
 class APICollector:
     def __init__(self,schema):
@@ -12,8 +14,15 @@ class APICollector:
     
     def start(self, param):
         response = self.getData(param)
-        resp = self.extractData(response)
-        return (resp)
+        response = self.extractData(response)
+        response = self.transform_data(response)
+        response = self.to_parquet(response)
+
+        if self._buffer is not None:
+            file_name = "Name"
+            print(file_name)
+            
+        return (response)
     
     def getData(self,param):
         url = f'https://api.tiendanube.com/v1/{CLIENT_ID}/products?{param}'
@@ -51,8 +60,22 @@ class APICollector:
 
     
     
-    def transform_data(self):
-        return
+    def transform_data(self, extracted):
+        result = pd.json_normalize(extracted)
+        result = result.explode('variants').reset_index(drop=True)
+        result_normalized = pd.json_normalize(result['variants'])
+        print(result_normalized)
+        result_normalized['values'] = result_normalized['values'].apply(lambda x: x[0]['pt'].split()[0] if isinstance(x, list) and len(x) > 0 else None)
+        print(result_normalized)
+        result = pd.concat([result.drop(columns=['variants']), result_normalized], axis=1)
+        result['sku'] = result.apply(lambda row: row.name + 1000, axis=1)
+        response = result
+        return response
     
-    def load_data(self):
-        return
+    def to_parquet(self, response):
+        self._buffer = BytesIO()
+        try:
+            response.to_parquet(self._buffer)
+        except:
+            print('Error ao transformar em parquet')
+            self._buffer = None
